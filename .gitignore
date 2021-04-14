@@ -2,3 +2,4 @@
 *.pyc
 data/img/*
 data/img.zip
+outputs/*
