@@ -18,63 +18,18 @@ class MadagascarFiresDataset(Dataset):
     num_bands = 7
     history = 368
     period_length = 16
-
-    def __init__(
-        self,
-        data_dir: str, 
-        train_start: str = '2015-02-01', 
-        test_start: str = '2020-02-01', 
-        batch_size: int = 32, 
-        max_regions: int = 2053
-    ):
-        self.data_dir = data_dir
-        self.train_start = train_start
-        self.test_start = test_start
-        self.batch_size = batch_size
-        self.max_regions = max_regions 
-
-        # Load data
-        filenames = sorted(os.listdir(data_dir))
-        dfs = []
-        for f in filenames:
-            if '.csv' in f:
-                fpath = f'{data_dir}/{f}'
-                print(f'Loading {fpath}...')
-                df = pd.read_csv(fpath)
-                dfs.append(df)
-        self.df = pd.concat(dfs, ignore_index=True)
-        self.df['date'] = pd.to_datetime(self.df['date'])
-
-        # Filter based on place and time, split into train and test
-        place_time_pairs = self.df[['rect_id', 'date']].drop_duplicates()
-        train_time_mask = (place_time_pairs['date'] > self.train_start) & (place_time_pairs['date'] <= self.test_start)
-        test_time_mask = place_time_pairs['date'] > self.test_start
-        place_mask = place_time_pairs['rect_id'] < self.max_regions
-        self.train_place_times = place_time_pairs[train_time_mask & place_mask].values
-        self.test_place_times = place_time_pairs[test_time_mask & place_mask].values 
-        print(
-            f'Prepared training set with {self.train_size} pairs from {self.train_start} to '
-            f'{test_start} for {self.max_regions} regions.'
-        )
-        print(f'Prepared test set with {self.test_size} pairs starting {self.test_start} for {self.max_regions} regions.')
     
-    @property
-    def train_size(self) -> int:
-        return len(self.train_place_times)
-    
-    @property 
-    def test_size(self) -> int:
-        return len(self.test_place_times)
+    def __init__(self, place_time_pairs: np.ndarray, labels: np.ndarray, data_df: pd.DataFrame):
+        self.place_time_pairs = place_time_pairs
+        self.labels = labels
+        self.df = data_df
 
     def __len__(self) -> int:
-        return self.train_size + self.test_size
+        return len(self.place_time_pairs)
     
     def __getitem__(self, idx: int) -> Tensor:
-        # Get place and time id from index
-        if idx < self.train_size:
-            place, time = self.train_place_times[idx]
-        else:
-            place, time = self.test_place_times[idx - self.train_size]
+        place, time = self.place_time_pairs[idx]
+        has_fire = self.labels[idx]
         
         # Extract history
         rect_df = self.df[(self.df['rect_id'] == place)]
@@ -101,5 +56,49 @@ class MadagascarFiresDataset(Dataset):
         if data.shape[0] < expected_seq_len:
             data = np.concatenate([np.zeros((expected_seq_len - data.shape[0], self.num_bands, self.num_bins)), data], axis=0)
         
-        label = torch.tensor(data[0, 0, 0] < 0.5, dtype=torch.long)
-        return (torch.tensor(data, dtype=torch.float), label)
+        features = torch.tensor(data, dtype=torch.float)
+        label = torch.tensor(has_fire, dtype=torch.long)
+        return (features, label)
+    
+    @classmethod
+    def create_datasets_from_dir(
+        cls,
+        data_dir: str, 
+        train_start: str = '2015-01-01', 
+        test_start: str = '2019-01-01', 
+        test_stop: str = '2019-12-31',
+        max_regions: int = 2053
+    ):
+
+        # Load data
+        filenames = sorted(os.listdir(data_dir))
+        dfs = []
+        for f in filenames:
+            if '.csv' in f:
+                fpath = f'{data_dir}/{f}'
+                print(f'Loading {fpath}...')
+                df = pd.read_csv(fpath)
+                dfs.append(df)
+        df = pd.concat(dfs, ignore_index=True)
+        df['date'] = pd.to_datetime(df['date'])
+        df['has_fire'] = (df['fire_counts'] > 0)
+
+        # Filter based on place and time, split into train and test
+        place_time_fire = df[['rect_id', 'date', 'has_fire']].drop_duplicates()
+        train_time_mask = (place_time_fire['date'] > train_start) & (place_time_fire['date'] <= test_start)
+        test_time_mask = (place_time_fire['date'] > test_start) & (place_time_fire['date'] <= test_stop)
+        place_mask = place_time_fire['rect_id'] < max_regions
+        train_place_time_fire = place_time_fire[train_time_mask & place_mask].values
+        test_place_time_fire = place_time_fire[test_time_mask & place_mask].values 
+
+        # Create datasets
+        train_dataset = cls(train_place_time_fire[:, :2], train_place_time_fire[:, -1].astype('bool'), df)
+        test_dataset = cls(test_place_time_fire[:, :2], test_place_time_fire[:, -1].astype('bool'), df)
+
+        print(
+            f'Prepared training set with {len(train_dataset)} pairs from {train_start} to '
+            f'{test_start} for {max_regions} regions.'
+        )
+        print(f'Prepared test set with {len(test_dataset)} pairs starting {test_start} for {max_regions} regions.')
+
+        return train_dataset, test_dataset
