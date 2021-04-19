@@ -1,4 +1,4 @@
 from models.logistic import LogisticClassifier
-from models.logistic import NeuralClassifier
+from models.neural import NeuralClassifier
 
 __all__ = ['LogisticClassifier', 'NeuralClassifier']

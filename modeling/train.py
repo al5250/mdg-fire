@@ -24,13 +24,13 @@ def train(config: DictConfig) -> None:
     train_weights = np.ones(len(train_dataset))
     train_weights[train_dataset.labels] = config.fire_weight
     train_loader = WeightedDL(
-        train_dataset, bs=config.batch_size, wgts=train_weights, shuffle=True, drop_last=True, num_workers=0
+        train_dataset, bs=config.batch_size, wgts=train_weights, shuffle=True, drop_last=True, num_workers=0, pin_memory=True
     )
-    test_loader = DataLoader(test_dataset, bs=config.batch_size, shuffle=False, drop_last=False, num_workers=0)
-    data = DataLoaders(train_loader, test_loader)
+    test_loader = DataLoader(test_dataset, bs=config.batch_size, shuffle=False, drop_last=False, num_workers=0, pin_memory=True)
+    data = DataLoaders(train_loader, test_loader, device=config.device)
 
     # Create model
-    model = instantiate(config.model)
+    model = instantiate(config.model).to(config.device)
 
     # Create learner and run
     learner = Learner(data, model, loss_func=F.cross_entropy, metrics=[accuracy, Recall(), Precision(), BalancedAccuracy()])
