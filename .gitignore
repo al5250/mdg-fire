@@ -1,4 +1,8 @@
 *.DS_Store
 *.pyc
 data/img/*
+data/labeled_img/*
 data/img.zip
+modeling/outputs/*
+*.ipynb_checkpoints/
+*.ipynb
