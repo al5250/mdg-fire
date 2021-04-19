@@ -3,11 +3,8 @@ dataset:
   train_start: 2015-01-01
   test_start: 2019-01-01 
   test_stop: 2019-12-31
-  max_regions: 5
+  max_regions: 100
   cache: True
-model: 
-  _target_: models.NeuralClassifier
-  dropout: 0.1
 batch_size: 256
 fire_weight: 4
 n_epoch: 20
@@ -15,4 +12,6 @@ lr: 0.001
 device: cpu
 hydra:
   run:
-    dir: outputs/${now:%Y-%m-%d_%H-%M-%S}_model=${model}_maxregions=${dataset.max_regions}_firwgt=${fire_weight}
+    dir: outputs/${now:%Y-%m-%d_%H-%M-%S}_maxregions=${dataset.max_regions}_firwgt=${fire_weight}_model=${model}
+defaults:
+  - model: logistic

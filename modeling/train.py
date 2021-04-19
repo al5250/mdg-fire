@@ -16,7 +16,7 @@ from dataset import MadagascarFiresDataset
 from models import LogisticClassifier
 
 
-@hydra.main(config_path='configs/', config_name='train_logistic')
+@hydra.main(config_path='configs/', config_name='train')
 def train(config: DictConfig) -> None:
 
     # Create datasets and dataloaders
